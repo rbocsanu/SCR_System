@@ -1,0 +1,44 @@
+package com.broker.social_companion_system.entities;
+
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.springframework.scheduling.config.Task;
+
+import java.io.Serial;
+import java.io.Serializable;
+
+@Getter
+@AllArgsConstructor
+@NoArgsConstructor
+@JsonTypeInfo(
+        use = JsonTypeInfo.Id.NAME,
+        property = "type")
+@JsonSubTypes({
+        @JsonSubTypes.Type(value = ServiceQuery.class, name = "service"),
+        @JsonSubTypes.Type(value = TaskQuery.class, name = "task")
+})
+public abstract class Query implements Comparable<Query>, Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 370570593557896947L;
+    
+    // Fields
+    protected String name;
+    @Setter
+    protected int priorityLevel;
+    protected long issuingTime; //remove
+
+
+    public int compareTo( Query other ) {
+        if ( priorityLevel > other.priorityLevel ) return -1;
+        else if ( priorityLevel < other.priorityLevel ) return 1;
+        else {
+            // Both have the same priority
+            return issuingTime > other.issuingTime ? 1 : -1;
+        }
+    }
+}

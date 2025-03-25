@@ -1,0 +1,281 @@
+:root {
+  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: light dark;
+  color: #213547;
+  background-color: #ffffff;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+a:hover {
+  color: #747bff;
+}
+
+body {
+  margin: 0;
+  display: grid;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+h1 {
+  font-size: 3.2em;
+  line-height: 1.1;
+}
+
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  border-color: #646cff;
+}
+button:focus,
+button:focus-visible {
+  outline: 4px auto -webkit-focus-ring-color;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color: #213547;
+    background-color: #ffffff;
+  }
+  a:hover {
+    color: #747bff;
+  }
+  button {
+    background-color: #f9f9f9;
+  }
+}
+
+.query-box {
+  background-color: #ffffff;
+  border-radius: 8px;
+  border: 1px solid #1a1a1a;
+  height: 80px;
+  width: 120px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.container {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 2fr 1fr;
+  gap: 10px;
+  position:fixed;
+  padding:0;
+  margin:0;
+
+  top:0;
+  left:0;
+
+  width: 100%;
+  height: 100%;
+}
+
+/*
+img {
+  width: 100%;
+  height: 100%;
+}
+
+/*
+.holderClients{
+  width: 20%;
+  height: 100%;
+  background-color: antiquewhite;
+  display: flex;
+}
+
+ */
+
+.holderClients {
+  height: 100%; /* Full height of the screen */
+  width: 15rem; /* Adjust width as needed */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center; /* Start from the center */
+  overflow: hidden;
+}
+
+.clientUser {
+  width: 100%;
+  height: 15%;
+  display: flex;
+  flex-direction: row;
+  margin: 5px 0;
+}
+
+.clientUser img {
+  width: 30%;
+  height: 100%;
+  align-content: center;
+}
+
+.clientUser .query {
+  /* background-color: #646cff; */
+  width: 70%;
+  height: 100%;
+}
+
+img {
+  width: 50%;
+  height: auto;
+
+}
+
+.holderOperators {
+  height: 100%;
+  width: 15rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  float:right;
+}
+
+.operatorUser {
+  width: 100%;
+  height: 15%;
+  display: flex;
+  flex-direction: row;
+  margin: 5px 0;
+}
+
+.operatorUser img {
+  width: 30%;
+  height: 100%;
+  align-content: center;
+}
+
+.operatorUser .query {
+  width: 70%;
+  height: 100%;
+}
+
+.holderServer {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.serverUser {
+  width: 10.5rem;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  margin: 0 5px;
+}
+
+.serverUser img {
+  width: 100%;
+  height: auto;
+  align-content: center;
+}
+
+.serverUser .query {
+  width: 100%;
+  height: 30%;
+  align-content: center;
+}
+
+.parentHolderBroker {
+  height: 100%;
+  width: 10.5em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.parentHolderBroker img {
+  margin: 10px;
+  width: 70%;
+  height: auto;
+}
+
+.holderBroker {
+  height: 80%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  overflow: auto;
+}
+
+.holderBroker .query {
+  width: 100%;
+  height: 20%;
+  margin: 5px 0;
+  flex-shrink: 0;
+}
+
+.query {
+  align-content: center;
+  box-sizing: border-box;
+  border: solid black 2px;
+  box-shadow: 2px 2px #1a1a1a ;
+}
+
+[data-querytype='task'] {
+  background-color: #F9938A;
+}
+
+[data-querytype='service'] {
+  background-color: #93e4af;
+}
+
+.user {
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-content: center;
+}
+
+.broker {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+  align-items: center;
+  justify-content: center;
+}
+
+.operator {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.server {
+  grid-column: 1/4;
+  grid-row: 2;
+}
