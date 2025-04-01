@@ -1,6 +1,7 @@
 package com.broker.social_companion_system.server;
 
 import com.broker.social_companion_system.client.QueryDto;
+import com.broker.social_companion_system.common_dtos.QueryPackage;
 import com.broker.social_companion_system.common_dtos.ResponseDto;
 import com.broker.social_companion_system.entities.Query;
 import lombok.RequiredArgsConstructor;
@@ -23,19 +24,32 @@ public class ServerController {
 
     @MessageMapping("/init_server_connection")
     @SendToUser("/queue/response")
-    public ResponseDto<String> initServerConnection() {
-        System.out.println("Initing server connection");
+    public ResponseDto<?> initServerConnection() {
         String server = SecurityContextHolder.getContext().getAuthentication().getName();
         serverManagementService.serverJoined(server);
 
         return new ResponseDto<>(HttpStatus.OK);
     }
 
-    @MessageMapping("/update")
-    @SendToUser("/queue/responses")
-    public ResponseDto<?> updateNotification(
-            @Payload Query query
-            ) {
+    @MessageMapping("/started_query")
+    @SendToUser("/queue/response")
+    public ResponseDto<?> startedQuery(
+            @Payload QueryPackage queryPackage
+    ) {
+        log.info("Started Query: " + queryPackage);
+
         return new ResponseDto<>(HttpStatus.OK);
     }
+
+    @MessageMapping("/completed_query")
+    @SendToUser("/queue/response")
+    public ResponseDto<?> completedQuery(
+            @Payload QueryPackage queryPackage
+            ) {
+        log.info("Completed query: " + queryPackage);
+        serverManagementService.serverCompletedQuery(queryPackage);
+
+        return new ResponseDto<>(HttpStatus.OK);
+    }
+
 }

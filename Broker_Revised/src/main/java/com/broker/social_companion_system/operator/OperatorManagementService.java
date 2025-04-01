@@ -27,11 +27,11 @@ public class OperatorManagementService {
     @Getter
     private final Set<String> busyOperators = new HashSet<>();
 
-    public void operatorJoined(String operator) {
+    public void operatorConnected(String operator) {
         operatorMarkedBusy(operator);
     }
 
-    public void operatorRemoved(String operator) {
+    public void operatorDisconnected(String operator) {
         availableOperators.remove(operator);
         busyOperators.remove(operator);
     }

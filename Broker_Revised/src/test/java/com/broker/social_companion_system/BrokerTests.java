@@ -1,8 +1,6 @@
 package com.broker.social_companion_system;
 
-import com.broker.social_companion_system.client.ClientQueryService;
-import com.broker.social_companion_system.client.QueryDto;
-import com.broker.social_companion_system.client.QuerySelectorService;
+import com.broker.social_companion_system.client.*;
 import com.broker.social_companion_system.common_dtos.QueryPackage;
 import com.broker.social_companion_system.common_dtos.ResponseDto;
 import com.broker.social_companion_system.entities.ServiceQuery;
@@ -10,24 +8,20 @@ import com.broker.social_companion_system.entities.TaskQuery;
 import com.broker.social_companion_system.operator.OperatorManagementService;
 import com.broker.social_companion_system.operator.OperatorMessageDto;
 import com.broker.social_companion_system.operator.OperatorMessageType;
+import com.broker.social_companion_system.server.ServerNotification;
+import com.broker.social_companion_system.server.ServerNotificationType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import netscape.javascript.JSObject;
 import org.json.JSONException;
-import org.json.JSONObject;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.Spy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;
-import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.converter.*;
 import org.springframework.messaging.simp.stomp.*;
@@ -55,7 +49,7 @@ public class BrokerTests {
     private QuerySelectorService querySelectorService;
 
     @InjectMocks
-    private ClientQueryService clientQueryService;
+    private ClientService clientService;
 
     @Autowired
     private OperatorManagementService operatorManagementService;
@@ -196,32 +190,39 @@ public class BrokerTests {
                 new ServiceQuery("Testing Request...", 5, 500)
         );
 
-        StompSession clientSession = startSession("client1", "password1");
         StompSession serverSession = startSession("1111", "rpassword1");
-
         List<CompletableFuture<ResponseDto>> serverResponseFutures = List.of(new CompletableFuture<>());
-        List<CompletableFuture<QueryPackage>> serverReplyFutures = List.of(new CompletableFuture<>());
+        List<CompletableFuture<ServerNotification>> serverReplyFutures = List.of(new CompletableFuture<>());
         serverSession.subscribe(
                 "/user/queue/responses",
                 TestStompFrameHandler.of(ResponseDto.class, serverResponseFutures)
         );
         serverSession.subscribe(
                 "/user/queue/reply",
-                TestStompFrameHandler.of(QueryPackage.class, serverReplyFutures)
+                TestStompFrameHandler.of(ServerNotification.class, serverReplyFutures)
         );
         serverSession.send("/app/server/init_server_connection", true);
 
-        List<CompletableFuture<ResponseDto>> clientFutures = List.of(new CompletableFuture<>());
-        clientSession.subscribe("/user/queue/responses",
+        StompSession clientSession = startSession("client1", "password1");
+        List<CompletableFuture<ResponseDto>> clientFutures = List.of(
+                new CompletableFuture<>()
+        );
+        clientSession.subscribe(
+                "/user/queue/responses",
                 TestStompFrameHandler.of(ResponseDto.class, clientFutures)
         );
+        QueryDto query = new QueryDto("Testing Request...", "1111");
+        clientSession.send("/app/client/request_query", query);
 
-        QueryDto queryDto = new QueryDto("Testing Request...", "1111");
-        clientSession.send("/app/client/request_query", queryDto);
+        ServerNotification serverNotification = serverReplyFutures.get(0).get(5, TimeUnit.SECONDS);
+        assert (serverNotification.notificationType() == ServerNotificationType.QUERY);
 
-        QueryPackage serverReceivedQuery = serverReplyFutures.get(0).get(5, TimeUnit.SECONDS);
-        assert (serverReceivedQuery.query().getName().equals("Testing Request..."));
+        ObjectMapper mapper = new ObjectMapper();
 
+        QueryPackage receivedServerQuery = mapper.convertValue(serverNotification.message(), QueryPackage.class);
+        log.info("Received server query " + receivedServerQuery.query().getName());
+
+        assert (receivedServerQuery.query().getName().equals("Testing Request..."));
     }
 
     @Test
@@ -246,14 +247,14 @@ public class BrokerTests {
 
         StompSession serverSession = startSession("1111", "rpassword1");
         List<CompletableFuture<ResponseDto>> serverResponseFutures = List.of(new CompletableFuture<>());
-        List<CompletableFuture<QueryPackage>> serverReplyFutures = List.of(new CompletableFuture<>());
+        List<CompletableFuture<ServerNotification>> serverReplyFutures = List.of(new CompletableFuture<>());
         serverSession.subscribe(
                 "/user/queue/responses",
                 TestStompFrameHandler.of(ResponseDto.class, serverResponseFutures)
         );
         serverSession.subscribe(
                 "/user/queue/reply",
-                TestStompFrameHandler.of(QueryPackage.class, serverReplyFutures)
+                TestStompFrameHandler.of(ServerNotification.class, serverReplyFutures)
         );
         serverSession.send("/app/server/init_server_connection", true);
 
@@ -281,10 +282,55 @@ public class BrokerTests {
                         )
         );
 
-        QueryPackage receivedServerQuery = serverReplyFutures.get(0).get(5, TimeUnit.SECONDS);
+        ServerNotification serverNotification = serverReplyFutures.get(0).get(5, TimeUnit.SECONDS);
+        assert (serverNotification.notificationType() == ServerNotificationType.QUERY);
+        // assert (serverNotification.message().getClass() == QueryPackage.class);
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        QueryPackage receivedServerQuery = mapper.convertValue(serverNotification.message(), QueryPackage.class);
         log.info("Received server query " + receivedServerQuery.query().getName());
 
         assert (receivedServerQuery.query().getName().equals("Testing Request..."));
+
+    }
+
+    @Test
+    public void clientNotifiedOfNewServer() throws ExecutionException, InterruptedException, TimeoutException {
+
+        StompSession clientSession = startSession("client1", "password1");
+        List<CompletableFuture<ResponseDto>> clientResponseFutures = List.of(
+                new CompletableFuture<>()
+        );
+        List<CompletableFuture<ClientNotification>> clientPublicFutures = List.of(
+                new CompletableFuture<>()
+        );
+        clientSession.subscribe(
+                "/user/queue/responses",
+                TestStompFrameHandler.of(ResponseDto.class, clientResponseFutures)
+        );
+        clientSession.subscribe(
+                "/public/client",
+                TestStompFrameHandler.of(ClientNotification.class, clientPublicFutures)
+        );
+
+        clientSession.send("/app/client/init_client_connection", "");
+        ResponseDto<?> initResponse = clientResponseFutures.get(0).get(5, TimeUnit.SECONDS);
+        log.info("Status code: " + initResponse.statusCode());
+
+        StompSession serverSession = startSession("1111", "rpassword1");
+        List<CompletableFuture<ResponseDto>> serverResponseFutures = List.of(new CompletableFuture<>());
+        serverSession.subscribe(
+                "/user/queue/responses",
+                TestStompFrameHandler.of(ResponseDto.class, serverResponseFutures)
+        );
+        serverSession.send("/app/server/init_server_connection", true);
+
+        ClientNotification notification = clientPublicFutures.get(0).get(5, TimeUnit.SECONDS);
+        log.info("Client notification: " + notification);
+
+        assert (notification.clientEvent() == ClientEvent.ADD_UNIT);
+        assert (notification.message()[0].equals("1111"));
 
     }
 

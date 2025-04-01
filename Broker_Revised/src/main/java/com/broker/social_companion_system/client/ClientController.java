@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
+import org.springframework.messaging.handler.annotation.SendTo;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Controller;
@@ -20,11 +21,12 @@ import org.springframework.stereotype.Controller;
 public class ClientController {
 
     //private static final Logger log = LoggerFactory.getLogger(BrokerApplication.class);
-    private final ClientQueryService clientQueryService;
+    private final ClientService clientService;
     private final VisualizeService visualizeService;
     private final QueueManager queueManager;
 
     @MessageMapping("/init_client_connection")
+    @SendToUser("/queue/responses")
     public ResponseDto<ClientNotification> initClientConnection() {
         String client = SecurityContextHolder.getContext().getAuthentication().getName();
         visualizeService.publishVisual(RequestType.CLIENT_CONNECTED, "Client " + client);
@@ -42,7 +44,7 @@ public class ClientController {
         String user = SecurityContextHolder.getContext().getAuthentication().getName();
         log.info("Client username: " + user);
 
-        boolean approved = clientQueryService.handleQueryRequest(query.message(), query.requestedUnitId(), user);
+        boolean approved = clientService.handleQueryRequest(query.message(), query.requestedUnitId(), user);
 
         ClientNotification clientNotification = approved
                 ? new ClientNotification(ClientEvent.ADD_SCHEDULED, new String[]{query.message()})

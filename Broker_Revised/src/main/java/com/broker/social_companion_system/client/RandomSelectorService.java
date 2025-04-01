@@ -15,11 +15,15 @@ public class RandomSelectorService implements QuerySelectorService {
     @Override
     public Query select(String request) {
 
+        return new ServiceQuery(request, rand.nextInt(6), rand.nextInt(100,1000));
+        /*
         if (rand.nextBoolean()) {
             return new ServiceQuery(request, rand.nextInt(6), rand.nextInt(100,1000));
         } else {
             return new TaskQuery(request, rand.nextInt(6), rand.nextInt(100,1000));
         }
+
+         */
 
     }
 }

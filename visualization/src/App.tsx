@@ -141,10 +141,10 @@ function App() {
             new UserData('1121',new QueryData('Processing as well...', 'service'))]);
         setBrokerQueries([new QueryData('Getting a cane', 'task'),
             new QueryData('Getting a bottle of water', 'service'),
-            new QueryData('Getting a bottle of water', 'service'),
-            new QueryData('Getting a bottle of water', 'service'),
-            new QueryData('Getting a bottle of water', 'service'),
-            new QueryData('Getting a bottle of water', 'service'),
+            //new QueryData('Getting a bottle of water', 'service'),
+            //new QueryData('Getting a bottle of water', 'service'),
+            //new QueryData('Getting a bottle of water', 'service'),
+            //new QueryData('Getting a bottle of water', 'service'),
             new QueryData('Getting a bottle of water', 'service')])
         /*
 

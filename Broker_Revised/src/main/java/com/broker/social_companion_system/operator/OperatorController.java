@@ -3,7 +3,6 @@ package com.broker.social_companion_system.operator;
 import com.broker.social_companion_system.common_dtos.QueryPackage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.MessageMapping;
 import org.springframework.messaging.handler.annotation.Payload;
 import org.springframework.messaging.handler.annotation.SendTo;
@@ -24,7 +23,7 @@ public class OperatorController {
     @SendToUser("/queue/responses")
     public OperatorMessageDto initOperatorConnection(@Payload boolean isAvailable) {
         String operatorUser = SecurityContextHolder.getContext().getAuthentication().getName();
-        operatorManagementService.operatorJoined(operatorUser);
+        operatorManagementService.operatorConnected(operatorUser);
 
         if (isAvailable) {
             operatorManagementService.operatorMarkedAvailable(operatorUser);
@@ -53,7 +52,7 @@ public class OperatorController {
     @SendTo("/topic/public")
     public void removeOperatorConnection() {
         String operatorUser = SecurityContextHolder.getContext().getAuthentication().getName();
-        operatorManagementService.operatorRemoved(operatorUser);
+        operatorManagementService.operatorDisconnected(operatorUser);
     }
 
     @MessageMapping("/respond_to_query_request")

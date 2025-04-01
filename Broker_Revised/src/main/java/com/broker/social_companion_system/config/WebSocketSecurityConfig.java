@@ -63,7 +63,7 @@ public class WebSocketSecurityConfig {
         UserDetails robot1 = User.builder()
                 .username("1111")
                 .password(passwordEncoder().encode("rpassword1"))
-                .roles("ROBOT")
+                .roles("SERVER")
                 .build();
 
         UserDetails operator1 = User.builder()
@@ -96,7 +96,16 @@ public class WebSocketSecurityConfig {
         messages
                 .nullDestMatcher().authenticated()
                 .simpSubscribeDestMatchers("/user/queue/errors").permitAll()
+                .anyMessage().permitAll();
+                /*
+                .simpDestMatchers("/user/public/client").hasRole("USER")
+                .simpDestMatchers("/user/public/operator").hasRole("OPERATOR")
+                .simpDestMatchers("/user/public/server").hasRole("SERVER")
                 .anyMessage().authenticated();
+
+                 */
+
+        //.anyMessage().authenticated();
         //.simpDestMatchers("/app/**").permitAll();//.hasRole("USER");
         //.simpSubscribeDestMatchers("/user/**", "/topic/friends/*").hasRole("USER")
         //.simpTypeMatchers(MESSAGE, SUBSCRIBE).denyAll()
