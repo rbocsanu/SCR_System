@@ -1,13 +1,17 @@
 package operator.userinterface;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import operator.connection.OperatorManager;
-import operator.dtos.OperatorEvent;
+import operator.dtos.QueryPackage;
+import operator.entities.OperatorEvent;
+import operator.entities.Query;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.util.ArrayList;
 
 public class OperatorGui extends JFrame implements ObserverOperatorGui {
     
@@ -26,6 +30,10 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 
 	JComboBox<String> unitIdSelectDrop;
 	JComboBox<String> prioritySelectDrop;
+
+	boolean isAvailable = true;
+
+	QueryPackage currentlySelectingQueryPackage;
 
     public OperatorGui(OperatorManager operatorManager) {
 		this.operatorManager = operatorManager;
@@ -54,7 +62,7 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 		contentPane.add(btnDeployInvestigation);
 		*/
 
-		lblAvailable = new JLabel("NOT AVAILABLE");
+		lblAvailable = new JLabel("AVAILABLE");
 		lblAvailable.setFont(new Font("Lucida Grande", Font.PLAIN, 11));
 		lblAvailable.setBounds(300, 6, 135, 30);
 		contentPane.add(lblAvailable);
@@ -138,7 +146,7 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 		contentPane.add(priorityText);
 		
 		String[] priorityChoices = {"1","2","3","4"};
-		prioritySelectDrop = new JComboBox<String>(priorityChoices);
+		prioritySelectDrop = new JComboBox<>(priorityChoices);
 		prioritySelectDrop.setBounds(241, 240, 127, 27);
 		contentPane.add(prioritySelectDrop);
 
@@ -149,35 +157,50 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 
 	public void update(OperatorEvent operatorEvent, Object msg) {
 
-		if (!msg.getClass().isArray() && msg.getClass().componentType() != String.class) return;
-
-		String[] msgArray = (String[]) msg;
-		
-		if (msgArray.length == 0) return;
+		ObjectMapper mapper = new ObjectMapper();
 
 		switch (operatorEvent) {
 			case NEW_TASK:
-				if (msgArray.length < 4) return;
-				//System.out.println(msgArray[0] + " " + msgArray[1] + " " + msgArray[2] + " " + msgArray[3]);
-				taskInformation.setText(msgArray[0]);
-				lblSuggestedPriority.setText(msgArray[1]);
-				prioritySelectDrop.setSelectedItem(msgArray[1]);
-				lblRequestingUnit.setText(msgArray[2]);
-				unitIdSelectDrop.setSelectedItem(msgArray[2]);
-				lblRequestingClient.setText(msgArray[3]);
+
+				if (msg == null) {
+					currentlySelectingQueryPackage = null;
+					resetTaskInfo();
+					break;
+				}
+
+				QueryPackage queryPackage = mapper.convertValue(msg, QueryPackage.class);
+				Query query = queryPackage.query();
+
+				taskInformation.setText(query.getName());
+				lblSuggestedPriority.setText(String.valueOf(query.getPriorityLevel()));
+				prioritySelectDrop.setSelectedItem(String.valueOf(query.getPriorityLevel()));
+				lblRequestingUnit.setText(queryPackage.requestedUnitId());
+				unitIdSelectDrop.setSelectedItem(queryPackage.requestedUnitId());
+				lblRequestingClient.setText(queryPackage.requestingUser());
+
+				currentlySelectingQueryPackage = queryPackage;
 
 				break;
 		
 			case AVAILABLE:
-				lblAvailable.setText(msgArray[0]);
+				boolean toggledAvailable = (boolean) msg;
+				lblAvailable.setText(toggledAvailable ? "AVAILABLE" : "UNAVAILABLE");
+				isAvailable = toggledAvailable;
 				break;
 
 			case ADD_UNIT:
-				unitIdSelectDrop.addItem(msgArray[0]);
+				unitIdSelectDrop.addItem((String) msg);
 				break;
 
 			case REMOVE_UNIT:
-				unitIdSelectDrop.removeItem(msgArray[0]);
+				unitIdSelectDrop.removeItem(msg);
+				break;
+
+			case ADD_ALL_UNITS:
+				ArrayList<String> units = (ArrayList<String>) msg;
+				for (String unit : units) {
+					unitIdSelectDrop.addItem(unit);
+				}
 				break;
 
 			default:
@@ -191,21 +214,30 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 		btnAnnounceAvailability.addActionListener(new ToggleAvailability());
 	}
 
-	// Action listeners
 	public class ApproveActionListener implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			int adjustedPriority = 0;
+			if (currentlySelectingQueryPackage == null) return;
+
 			if (prioritySelectDrop.getSelectedItem() != null){
-				adjustedPriority = Integer.valueOf((String) prioritySelectDrop.getSelectedItem());
+				currentlySelectingQueryPackage.query().setPriorityLevel(Integer.parseInt((String) prioritySelectDrop.getSelectedItem()));
 			}
 
-			String adjustedUnitId = "0";
+			String adjustedUnitId = currentlySelectingQueryPackage.requestedUnitId();
 			if (unitIdSelectDrop.getSelectedItem() != null){
-				adjustedUnitId = (String)unitIdSelectDrop.getSelectedItem();
+				adjustedUnitId = (String) unitIdSelectDrop.getSelectedItem();
 			}
-			operatorManager.decideOnTask(true, adjustedPriority, adjustedUnitId);
 
+			QueryPackage finalPackage = new QueryPackage(
+				currentlySelectingQueryPackage.query(),
+				adjustedUnitId,
+				currentlySelectingQueryPackage.requestingUser(),
+				true
+			);
+
+			operatorManager.decideOnTask(finalPackage);
+
+			currentlySelectingQueryPackage = null;
 			resetTaskInfo();
 		}
 	}
@@ -213,7 +245,19 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 	public class DeclineActionListener implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			operatorManager.decideOnTask(false);
+			if (currentlySelectingQueryPackage == null) {
+				return;
+			}
+
+			QueryPackage finalPackage = new QueryPackage(
+					currentlySelectingQueryPackage.query(),
+					currentlySelectingQueryPackage.requestedUnitId(),
+					currentlySelectingQueryPackage.requestingUser(),
+					false
+			);
+
+			operatorManager.decideOnTask(finalPackage);
+			currentlySelectingQueryPackage = null;
 			resetTaskInfo();
 		}
 	}
@@ -221,7 +265,11 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 	public class ToggleAvailability implements ActionListener {
 		@Override
 		public void actionPerformed(ActionEvent e) {
-			operatorManager.announceAvailability(!operatorManager.isAvailable());
+			operatorManager.announceAvailability(!isAvailable, currentlySelectingQueryPackage);
+			if (isAvailable && currentlySelectingQueryPackage != null) {
+				currentlySelectingQueryPackage = null;
+				resetTaskInfo();
+			}
 		}
 	}
 
@@ -230,5 +278,7 @@ public class OperatorGui extends JFrame implements ObserverOperatorGui {
 		lblSuggestedPriority.setText("N/A");
 		lblRequestingUnit.setText("N/A");
 		lblRequestingClient.setText("N/A");
+		prioritySelectDrop.setSelectedItem("");
+		unitIdSelectDrop.setSelectedItem("");
 	}
 }

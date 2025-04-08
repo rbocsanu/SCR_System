@@ -5,9 +5,10 @@ import com.broker.social_companion_system.common_dtos.QueryPackage;
 import com.broker.social_companion_system.common_dtos.ResponseDto;
 import com.broker.social_companion_system.entities.ServiceQuery;
 import com.broker.social_companion_system.entities.TaskQuery;
+import com.broker.social_companion_system.global_services.QueueManager;
 import com.broker.social_companion_system.operator.OperatorManagementService;
-import com.broker.social_companion_system.operator.OperatorMessageDto;
-import com.broker.social_companion_system.operator.OperatorMessageType;
+import com.broker.social_companion_system.operator.OperatorNotification;
+import com.broker.social_companion_system.operator.OperatorEvent;
 import com.broker.social_companion_system.server.ServerNotification;
 import com.broker.social_companion_system.server.ServerNotificationType;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -25,6 +26,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.lang.NonNull;
 import org.springframework.messaging.converter.*;
 import org.springframework.messaging.simp.stomp.*;
+import org.springframework.scheduling.config.Task;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.springframework.web.socket.WebSocketHttpHeaders;
@@ -53,6 +55,8 @@ public class BrokerTests {
 
     @Autowired
     private OperatorManagementService operatorManagementService;
+    @Autowired
+    private QueueManager queueManager;
 
     @Value("${local.server.port}")
     private int port;
@@ -66,73 +70,28 @@ public class BrokerTests {
     }
 
     @Test
-    public void clientSendMessageWorks() throws ExecutionException, InterruptedException, TimeoutException, JSONException {
-        when(querySelectorService.select("Hey")).thenReturn(
-                new ServiceQuery("Hey", 5, 500)
+    public void clientSendsQuery() throws ExecutionException, InterruptedException, TimeoutException, JSONException {
+        when(querySelectorService.select("Testing query...")).thenReturn(
+                new ServiceQuery("Testing query...", 5, 500)
         );
 
         StompSession session = startSession("client1", "password1");
 
-        List<CompletableFuture<String>> publicFutures = List.of(new CompletableFuture<>());
-        session.subscribe("/topic/public", TestStompFrameHandler.of(String.class, publicFutures));
+        List<CompletableFuture<ResponseDto>> clientResponseFutures = List.of(new CompletableFuture<>());
+        session.subscribe("/user/queue/responses", TestStompFrameHandler.of(ResponseDto.class, clientResponseFutures));
 
-        /*
-        JSONObject query = new JSONObject();
-        query.put("message", "Hello from Client!");
-        query.put("requestedUnitId", "5432");
-
-        */
-
-        QueryDto query = new QueryDto("Hey", "5432");
+        QueryDto query = new QueryDto("Testing query...", "1111");
         session.send("/app/client/request_query", query);
 
-        //String result = completableFuture.get(5, TimeUnit.SECONDS);
-        String result = publicFutures.get(0).get(5, TimeUnit.SECONDS);
+        clientResponseFutures.get(0).get(5, TimeUnit.SECONDS);
 
-        log.info("Returned Result: " + result);
-        Assert.assertNotNull(result);
+        QueryPackage queuedPackage = queueManager.getServerPackageQueue().peek();
+        assert (queuedPackage != null);
+        assert (queuedPackage.query().getClass() == ServiceQuery.class);
+        assert (queuedPackage.query().getName().equals("Testing query..."));
+        assert (queuedPackage.approved());
+        assert (queuedPackage.requestedUnitId().equals("1111"));
     }
-
-    @Test
-    public void operatorConnects() throws ExecutionException, InterruptedException, TimeoutException {
-        StompSession operatorSession = startSession("operator1", "opassword1");
-
-        List<CompletableFuture<OperatorMessageDto>> operatorFutures = List.of(new CompletableFuture<>());
-        operatorSession.subscribe("/topic/public",
-                TestStompFrameHandler.of(OperatorMessageDto.class, operatorFutures)
-        );
-
-        operatorSession.send("/app/operator/init_operator_connection", true);
-
-        OperatorMessageDto confirmationLog = operatorFutures.get(0).get(5, TimeUnit.SECONDS);
-
-        Set<String> busyOperators = operatorManagementService.getBusyOperators();
-        log.info(busyOperators.toString());
-
-        assert(confirmationLog.messageType() == OperatorMessageType.LOG);
-        assert(confirmationLog.messageContent().equals("Connected"));
-        assert(busyOperators.contains("operator1"));
-    }
-
-    @Test
-    public void operatorMarksAvailable() throws ExecutionException, InterruptedException, TimeoutException {
-        StompSession operatorSession = startSession("operator1", "opassword1");
-
-        List<CompletableFuture<OperatorMessageDto>> operatorFutures = List.of(
-                new CompletableFuture<>(),
-                new CompletableFuture<>());
-        operatorSession.subscribe("/topic/public",
-                TestStompFrameHandler.of(OperatorMessageDto.class, operatorFutures)
-        );
-
-        operatorSession.send("/app/operator/init_operator_connection", true);
-        operatorSession.send("/app/operator/mark_available", true);
-
-        OperatorMessageDto connectionLog = operatorFutures.get(0).get(5, TimeUnit.SECONDS);
-        OperatorMessageDto availabilityLog = operatorFutures.get(1).get(5, TimeUnit.SECONDS);
-
-    }
-
 
     @Test
     public void singleOperatorReceivesTask() throws ExecutionException, InterruptedException, TimeoutException {
@@ -140,47 +99,41 @@ public class BrokerTests {
                 new TaskQuery("Testing Request...", 5, 500)
         );
 
-        StompSession clientSession = startSession("client1", "password1");
         StompSession operatorSession = startSession("operator1", "opassword1");
 
-        List<CompletableFuture<OperatorMessageDto>> operatorFutures = List.of(
-                new CompletableFuture<>()
-        );
-        operatorSession.subscribe("/user/queue/responses",
-                TestStompFrameHandler.of(OperatorMessageDto.class, operatorFutures)
-        );
+        List<CompletableFuture<ResponseDto>> operatorResponseFutures = List.of(new CompletableFuture<>());
+        operatorSession.subscribe("/user/queue/responses", TestStompFrameHandler.of(ResponseDto.class, operatorResponseFutures));
+
+        List<CompletableFuture<OperatorNotification>> operatorReplyFutures = List.of(new CompletableFuture<>());
+        operatorSession.subscribe("/user/queue/reply", TestStompFrameHandler.of(OperatorNotification.class, operatorReplyFutures));
 
         operatorSession.send("/app/operator/init_operator_connection", true);
-        OperatorMessageDto connectionLog = operatorFutures.get(0).get(5, TimeUnit.SECONDS);
-        log.info("Connection log: " + connectionLog.messageContent());
-        assert (connectionLog.messageContent().equals("Connected"));
 
-        List<CompletableFuture<QueryPackage>> operatorQueryFutures = List.of(
-                new CompletableFuture<>()
-        );
+        ResponseDto<?> connectionLog = operatorResponseFutures.get(0).get(5, TimeUnit.SECONDS);
+        log.info("Connection log: " + connectionLog.statusCode() + " | message: " + connectionLog.message());
 
-        operatorSession.subscribe("/user/queue/reply",
-                TestStompFrameHandler.of(QueryPackage.class, operatorQueryFutures)
-        );
+        StompSession clientSession = startSession("client1", "password1");
 
-        List<CompletableFuture<ResponseDto>> clientFutures = List.of(
-                new CompletableFuture<>()
-        );
-        clientSession.subscribe(
-                "/user/queue/responses",
-                TestStompFrameHandler.of(ResponseDto.class, clientFutures)
-        );
+        List<CompletableFuture<ResponseDto>> clientFutures = List.of(new CompletableFuture<>());
+        clientSession.subscribe("/user/queue/responses", TestStompFrameHandler.of(ResponseDto.class, clientFutures));
 
         QueryDto query = new QueryDto("Testing Request...", "5432");
         clientSession.send("/app/client/request_query", query);
 
-        ResponseDto<String> clientQueryResponse = clientFutures.get(0).get(5, TimeUnit.SECONDS);
-        QueryPackage operatorQueryReceived = operatorQueryFutures.get(0).get(5, TimeUnit.SECONDS);
+        ResponseDto<?> clientQueryResponse = clientFutures.get(0).get(5, TimeUnit.SECONDS);
 
-        assert (clientQueryResponse.statusCode().value() == 200);
+        OperatorNotification queryPackageNotification = operatorReplyFutures.get(0).get(5, TimeUnit.SECONDS);
+        log.info("QueryPackage notification: " + queryPackageNotification.operatorEvent());
+        assert (queryPackageNotification.operatorEvent() == OperatorEvent.NEW_TASK);
 
-        log.info(operatorQueryReceived.query().getName());
-        assert (operatorQueryReceived.query().getName().equals("Testing Request..."));
+        ObjectMapper mapper = new ObjectMapper();
+
+        QueryPackage receivedOperatorQueryPackage = mapper.convertValue(queryPackageNotification.message(), QueryPackage.class);
+
+        log.info("Client query response: " + clientQueryResponse.message());
+        log.info("Operator query received: " + receivedOperatorQueryPackage.query().getName());
+
+        assert (receivedOperatorQueryPackage.query().getName().equals("Testing Request..."));
 
     }
 
@@ -232,16 +185,16 @@ public class BrokerTests {
         );
 
         StompSession operatorSession = startSession("operator1", "opassword1");
-        List<CompletableFuture<OperatorMessageDto>> operatorResponseFutures = List.of(
+        List<CompletableFuture<ResponseDto>> operatorResponseFutures = List.of(
                 new CompletableFuture<>(),
                 new CompletableFuture<>());
         operatorSession.subscribe(
                 "/user/queue/responses",
-                TestStompFrameHandler.of(OperatorMessageDto.class, operatorResponseFutures)
+                TestStompFrameHandler.of(ResponseDto.class, operatorResponseFutures)
         );
-        List<CompletableFuture<QueryPackage>> operatorReplyFutures = List.of(new CompletableFuture<>());
+        List<CompletableFuture<OperatorNotification>> operatorReplyFutures = List.of(new CompletableFuture<>());
         operatorSession.subscribe("/user/queue/reply",
-                TestStompFrameHandler.of(QueryPackage.class, operatorReplyFutures)
+                TestStompFrameHandler.of(OperatorNotification.class, operatorReplyFutures)
         );
         operatorSession.send("/app/operator/init_operator_connection", true);
 
@@ -258,8 +211,8 @@ public class BrokerTests {
         );
         serverSession.send("/app/server/init_server_connection", true);
 
-        OperatorMessageDto connectionLog = operatorResponseFutures.get(0).get(5, TimeUnit.SECONDS);
-        log.info("Connection log: " + connectionLog.messageContent());
+        ResponseDto<OperatorNotification> connectionLog = operatorResponseFutures.get(0).get(5, TimeUnit.SECONDS);
+        log.info("Connection log: " + connectionLog.message());
 
         StompSession clientSession = startSession("client1", "password1");
         List<CompletableFuture<ResponseDto>> clientFutures = List.of(
@@ -272,12 +225,19 @@ public class BrokerTests {
         QueryDto query = new QueryDto("Testing Request...", "1111");
         clientSession.send("/app/client/request_query", query);
 
-        QueryPackage receivedOperatorQuery = operatorReplyFutures.get(0).get(5, TimeUnit.SECONDS);
+        OperatorNotification queryPackageNotification = operatorReplyFutures.get(0).get(5, TimeUnit.SECONDS);
+        log.info("QueryPackage notification: " + queryPackageNotification.operatorEvent());
+        assert (queryPackageNotification.operatorEvent() == OperatorEvent.NEW_TASK);
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        QueryPackage receivedOperatorQueryPackage = mapper.convertValue(queryPackageNotification.message(), QueryPackage.class);
+
         operatorSession.send("/app/operator/respond_to_query_request",
                 new QueryPackage(
-                        receivedOperatorQuery.query(),
-                        receivedOperatorQuery.requestedUnitId(),
-                        receivedOperatorQuery.requestingUser(),
+                        receivedOperatorQueryPackage.query(),
+                        receivedOperatorQueryPackage.requestedUnitId(),
+                        receivedOperatorQueryPackage.requestingUser(),
                         true
                         )
         );
@@ -285,8 +245,6 @@ public class BrokerTests {
         ServerNotification serverNotification = serverReplyFutures.get(0).get(5, TimeUnit.SECONDS);
         assert (serverNotification.notificationType() == ServerNotificationType.QUERY);
         // assert (serverNotification.message().getClass() == QueryPackage.class);
-
-        ObjectMapper mapper = new ObjectMapper();
 
         QueryPackage receivedServerQuery = mapper.convertValue(serverNotification.message(), QueryPackage.class);
         log.info("Received server query " + receivedServerQuery.query().getName());
@@ -334,6 +292,9 @@ public class BrokerTests {
 
     }
 
+
+    /* Helper methods for test cases */
+
     public StompSession startSession(String authUser, String authPass) throws ExecutionException, InterruptedException {
         StandardWebSocketClient webSocketClient = new StandardWebSocketClient();
         WebSocketStompClient stompClient = new WebSocketStompClient(webSocketClient);
@@ -354,6 +315,8 @@ public class BrokerTests {
         return stompClient.connectAsync(wsUrl, handshakeHeaders, headers, sessionHandler).get();
 
     }
+
+    /* Helper classes for test cases */
 
     private static class TestingSessionHandler extends StompSessionHandlerAdapter {
         @Override

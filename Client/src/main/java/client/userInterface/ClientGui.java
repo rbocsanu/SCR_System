@@ -287,8 +287,8 @@ public class ClientGui extends JFrame implements ObserverClientGui {
 		public void actionPerformed(ActionEvent e) {
 
             String request = activityRequestField.getText();
-            if (request.length() < 2) return; // TODO: cannot send an empty request
-			clientManager.sendRequest(activityRequestField.getText(), (String) unitSelectDrop.getSelectedItem()); // TODO: change unit id
+            if (request.length() < 2) return;
+			clientManager.sendRequest(activityRequestField.getText(), (String) unitSelectDrop.getSelectedItem());
 		}
 	}
 }

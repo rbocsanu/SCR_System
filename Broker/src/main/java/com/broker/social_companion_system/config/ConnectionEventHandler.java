@@ -53,6 +53,5 @@ public class ConnectionEventHandler {
         if (isOperator) {
             operatorManagementService.operatorDisconnected(user.getName());
         }
-
     }
 }

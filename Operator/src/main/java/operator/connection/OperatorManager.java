@@ -1,11 +1,12 @@
 package operator.connection;
 
 import lombok.Getter;
-import operator.dtos.OperatorEvent;
-import operator.dtos.OperatorNotification;
+import operator.dtos.QueryPackage;
+import operator.entities.OperatorEvent;
+import operator.entities.OperatorNotification;
 import operator.util.OperatorMessageStompFrameHandler;
 import operator.util.OperatorSessionHandler;
-import operator.util.ClientStompFrameHandler;
+import operator.util.OperatorResponseStompFrameHandler;
 import org.springframework.messaging.converter.CompositeMessageConverter;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
 import org.springframework.messaging.converter.MessageConverter;
@@ -13,6 +14,7 @@ import org.springframework.messaging.converter.StringMessageConverter;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 import org.springframework.messaging.simp.stomp.StompSession;
 import org.springframework.messaging.simp.stomp.StompSessionHandler;
+import org.springframework.stereotype.Service;
 import org.springframework.web.socket.WebSocketHttpHeaders;
 import org.springframework.web.socket.client.standard.StandardWebSocketClient;
 import org.springframework.web.socket.messaging.WebSocketStompClient;
@@ -21,15 +23,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+@Service
 public class OperatorManager extends ObservableOperator {
 
     private final int port = 8080;
     private final String wsUrl = "ws://localhost:" + port + "/broker";
-    @Getter
-    private boolean available;
 
     private OperatorSessionHandler sessionHandler;
-    private ClientStompFrameHandler stompFrameHandler;
+    private OperatorResponseStompFrameHandler stompFrameHandler;
     private OperatorMessageStompFrameHandler messageStompFrameHandler;
     private StompSession session;
 
@@ -39,14 +40,14 @@ public class OperatorManager extends ObservableOperator {
             sessionHandler = new OperatorSessionHandler();
             session = startSession(authUser, authPass, sessionHandler);
 
-            session.send("/app/client/init_client_connection", "");
+            session.send("/app/operator/init_operator_connection", true);
 
-            stompFrameHandler = new ClientStompFrameHandler(this);
+            stompFrameHandler = new OperatorResponseStompFrameHandler(this);
             messageStompFrameHandler = new OperatorMessageStompFrameHandler(this);
 
             session.subscribe("/user/queue/responses", stompFrameHandler);
             session.subscribe("/user/queue/reply", messageStompFrameHandler);
-            session.subscribe("/public/client", messageStompFrameHandler);
+            session.subscribe("/public/operator", messageStompFrameHandler);
         } catch (ExecutionException e) {
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
@@ -54,23 +55,20 @@ public class OperatorManager extends ObservableOperator {
         }
     }
 
-    public void decideOnTask(boolean approved) {
-        session.send("/app/operator/decide_on_task", approved);
-
-        notifyAll(OperatorEvent.NEW_TASK, new String[]{""});
+    public void decideOnTask(QueryPackage queryPackage) {
+        session.send("/app/operator/respond_to_query_request", queryPackage);
     }
 
-    public void decideOnTask(boolean approved, int adjustedPriority, String adjustedUnitId) {
-
-    }
-
-    public void announceAvailability(boolean available) {
-
+    public void announceAvailability(boolean available, QueryPackage currentlySelectingQueryPackage) {
+        session.send("/app/operator/mark_available", available);
+        if (!available && currentlySelectingQueryPackage != null) {
+            session.send("/app/operator/return_query_request", currentlySelectingQueryPackage);
+        }
     }
 
     public void handleResponse(OperatorNotification notification) {
         System.out.println("Handling response: " + notification);
-        notifyAll(notification.clientEvent(), notification.message());
+        notifyAll(notification.operatorEvent(), notification.message());
     }
 
     private StompSession startSession(String authUser, String authPass, StompSessionHandler sessionHandler)

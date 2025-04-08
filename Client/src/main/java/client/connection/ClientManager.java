@@ -5,7 +5,7 @@ import client.dtos.ClientNotification;
 import client.dtos.QueryDto;
 import client.util.ClientMessageStompFrameHandler;
 import client.util.ClientSessionHandler;
-import client.util.ClientStompFrameHandler;
+import client.util.ClientResponseStompFrameHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.converter.CompositeMessageConverter;
 import org.springframework.messaging.converter.MappingJackson2MessageConverter;
@@ -31,7 +31,7 @@ public class ClientManager extends ObservableClient {
     private final String wsUrl = "ws://localhost:" + port + "/broker";
 
     private ClientSessionHandler sessionHandler;
-    private ClientStompFrameHandler stompFrameHandler;
+    private ClientResponseStompFrameHandler stompFrameHandler;
     private ClientMessageStompFrameHandler messageStompFrameHandler;
     private StompSession session;
 
@@ -43,7 +43,7 @@ public class ClientManager extends ObservableClient {
 
             session.send("/app/client/init_client_connection", "");
 
-            stompFrameHandler = new ClientStompFrameHandler(this);
+            stompFrameHandler = new ClientResponseStompFrameHandler(this);
             messageStompFrameHandler = new ClientMessageStompFrameHandler(this);
 
             session.subscribe("/user/queue/responses", stompFrameHandler);

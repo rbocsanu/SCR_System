@@ -13,6 +13,7 @@ import java.util.Scanner;
 @SpringBootApplication
 public class ServerApplication {
     public static void main(String[] args) {
+        /*
         Scanner idInput = new Scanner(System.in);
         System.out.println("robot id: ");
         String id = idInput.nextLine();
@@ -20,10 +21,15 @@ public class ServerApplication {
         String password = idInput.nextLine();
         idInput.close();
 
+         */
+
         ConfigurableApplicationContext context = new SpringApplicationBuilder(ServerApplication.class).headless(false).run(args);
         //ObservableUnit guiObservable = context.getBean(ObservableUnit.class)
         ServerManager server = context.getBean(ServerManager.class);
         //RobotUnit robotUnit = context.getBean(RobotUnit.class);
+
+        String id = context.getEnvironment().getProperty("id");
+        String password = context.getEnvironment().getProperty("password");
 
         server.initConnection(id, password);
 

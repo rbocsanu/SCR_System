@@ -26,6 +26,8 @@ public class OperatorManagementService {
     private final LinkedList<String> availableOperators = new LinkedList<>();
     @Getter
     private final Set<String> busyOperators = new HashSet<>();
+    @Getter
+    private final Set<String> unavailableOperators = new HashSet<>();
 
     public void operatorConnected(String operator) {
         operatorMarkedBusy(operator);
@@ -37,24 +39,27 @@ public class OperatorManagementService {
     }
 
     public void operatorAnnouncedAvailable(String operator) {
-        busyOperators.remove(operator);
+        unavailableOperators.remove(operator);
         operatorMarkedAvailable(operator);
     }
 
     public void operatorAnnouncedUnavailable(String operator) {
         availableOperators.remove(operator);
-        operatorMarkedBusy(operator);
+        busyOperators.remove(operator);
+        unavailableOperators.add(operator);
     }
 
     public void operatorMarkedBusy(String operator) {
+        if (unavailableOperators.contains(operator)) return;
         busyOperators.add(operator);
     }
 
     public void operatorMarkedAvailable(String operator) {
+        if (unavailableOperators.contains(operator)) return;
         availableOperators.addLast(operator);
     }
 
-    public void respondToQueryRequest(QueryPackage queryPackage, String operator /*, boolean available*/) {
+    public void respondToQueryRequest(QueryPackage queryPackage, String operator) {
         if (queryPackage.approved()) {
             queueManager.addPackageToServerQueue(queryPackage);
             replyMessageService.sendMessageToClient(
@@ -68,11 +73,11 @@ public class OperatorManagementService {
                 queryPackage.requestingUser()
         );
 
-        /*
-        if (available) {
-            operatorMarkedAvailable(operator);
-        }
-        */
+        operatorMarkedAvailable(operator);
+    }
+
+    public void returnQueryRequest(QueryPackage queryPackage) {
+        queueManager.addPackageToOperatorQueue(queryPackage);
     }
 
     public void distributeMaxPackagesToOperators() {
@@ -84,6 +89,8 @@ public class OperatorManagementService {
     }
 
     public boolean distributeNextPackageToOperator() {
+        log.info("Available Operators: " + availableOperators);
+        log.info("Package queue: " + queueManager.getOperatorPackageQueue());
         if (availableOperators.isEmpty() || queueManager.getOperatorPackageQueue().isEmpty()) {
             return false;
         }
@@ -91,9 +98,14 @@ public class OperatorManagementService {
         String operator = availableOperators.poll();
         operatorMarkedBusy(operator);
 
+        log.info("Distributing package: " + queueManager.getOperatorPackageQueue().peek() + " to: " + operator);
+
         //OperatorMessageDto operatorMessageDto = new OperatorMessageDto(packageQueue.poll(), OperatorMessageType.QUERY);
         //log.info("Package queue: " + packageQueue + "\nIs empty: ");
-        replyMessageService.sendMessageToOperator(queueManager.getOperatorPackageQueue().poll(), operator);
+
+        OperatorNotification operatorNotification = new OperatorNotification(OperatorEvent.NEW_TASK, queueManager.getOperatorPackageQueue().poll());
+
+        replyMessageService.sendMessageToOperator(operatorNotification, operator);
 
         return true;
     }

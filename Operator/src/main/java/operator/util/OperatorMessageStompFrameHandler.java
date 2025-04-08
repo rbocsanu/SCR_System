@@ -2,7 +2,7 @@ package operator.util;
 
 import lombok.AllArgsConstructor;
 import operator.connection.OperatorManager;
-import operator.dtos.OperatorNotification;
+import operator.entities.OperatorNotification;
 import org.springframework.messaging.simp.stomp.StompFrameHandler;
 import org.springframework.messaging.simp.stomp.StompHeaders;
 

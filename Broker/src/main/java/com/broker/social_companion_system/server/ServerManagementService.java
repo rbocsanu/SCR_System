@@ -7,6 +7,8 @@ import com.broker.social_companion_system.global_services.QueueManager;
 import com.broker.social_companion_system.global_services.ReplyMessageService;
 import com.broker.social_companion_system.global_services.RequestType;
 import com.broker.social_companion_system.global_services.VisualizeService;
+import com.broker.social_companion_system.operator.OperatorEvent;
+import com.broker.social_companion_system.operator.OperatorNotification;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,12 +28,14 @@ public class ServerManagementService {
     public void serverJoined(String server) {
         queueManager.addAvailableServer(server);
         replyMessageService.sendMessageToAllClients(new ClientNotification(ClientEvent.ADD_UNIT, new String[]{server}));
+        replyMessageService.sendMessageToAllOperators(new OperatorNotification(OperatorEvent.ADD_UNIT, server));
         visualizeService.publishVisual(RequestType.SERVER_CONNECTED, server);
     }
 
     public void serverDisconnect(String server) {
         queueManager.removeAvailableServer(server);
         replyMessageService.sendMessageToAllClients(new ClientNotification(ClientEvent.REMOVE_UNIT, new String[]{server}));
+        replyMessageService.sendMessageToAllOperators(new OperatorNotification(OperatorEvent.REMOVE_UNIT, server));
         visualizeService.publishVisual(RequestType.SERVER_DISCONNECTED, server);
     }
 
@@ -41,9 +45,6 @@ public class ServerManagementService {
 
     public void distributeMaxPackagesToServers() {
 
-        // TODO Remove print statements
-        // System.out.println(queueManager.getServerPackageQueue());
-        // System.out.println(queueManager.getAvailableServers());
         boolean nextPackageExists = true;
 
         while (nextPackageExists) {

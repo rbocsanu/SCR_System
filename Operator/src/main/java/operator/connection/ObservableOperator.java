@@ -1,6 +1,6 @@
 package operator.connection;
 
-import operator.dtos.OperatorEvent;
+import operator.entities.OperatorEvent;
 import operator.userinterface.ObserverOperatorGui;
 
 import java.util.ArrayList;
